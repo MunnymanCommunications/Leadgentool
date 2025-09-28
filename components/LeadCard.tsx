@@ -1,11 +1,12 @@
 import React from 'react';
-import type { Lead } from '../types';
+import type { Lead, EnrichedContactInfo } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { BriefcaseIcon } from './icons/BriefcaseIcon';
 import { EmailIcon } from './icons/EmailIcon';
 import { PhoneIcon } from './icons/PhoneIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { Loader } from './Loader';
+import { LinkedinIcon } from './icons/LinkedinIcon';
 
 
 interface LeadCardProps {
@@ -30,8 +31,45 @@ const InfoRow: React.FC<{ icon: React.ReactNode; label: string; value: string }>
     );
 };
 
+const ConfidenceBadge: React.FC<{ confidence: 'high' | 'medium' | 'low' }> = ({ confidence }) => {
+    const confidenceStyles = {
+        high: 'bg-green-500/20 text-green-300 border-green-500/30',
+        medium: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+        low: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    };
+    return (
+        <span className={`ml-2 px-2 py-0.5 text-xs font-semibold rounded-full border ${confidenceStyles[confidence]}`}>
+            {confidence}
+        </span>
+    );
+};
+
+const EnrichedInfoRow: React.FC<{ info: EnrichedContactInfo }> = ({ info }) => (
+    <div className="flex justify-between items-center text-sm">
+        <span className="text-gray-200 font-mono break-all">{info.value}</span>
+        <ConfidenceBadge confidence={info.confidence} />
+    </div>
+);
+
 
 export const LeadCard: React.FC<LeadCardProps> = ({ lead, onEnrich }) => {
+  const hasEnrichedData = lead.enrichedData && (
+    lead.enrichedData.summary ||
+    lead.enrichedData.linkedinUrl ||
+    (lead.enrichedData.emails && lead.enrichedData.emails.length > 0) ||
+    (lead.enrichedData.phones && lead.enrichedData.phones.length > 0)
+  );
+
+  const confidenceOrder: { [key in 'high' | 'medium' | 'low']: number } = { high: 0, medium: 1, low: 2 };
+
+  const sortedEmails = lead.enrichedData?.emails
+    ? [...lead.enrichedData.emails].sort((a, b) => confidenceOrder[a.confidence] - confidenceOrder[b.confidence])
+    : [];
+    
+  const sortedPhones = lead.enrichedData?.phones
+    ? [...lead.enrichedData.phones].sort((a, b) => confidenceOrder[a.confidence] - confidenceOrder[b.confidence])
+    : [];
+
   return (
     <div className="relative bg-gray-800/70 border border-gray-700 rounded-lg p-5 transition-all duration-300 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10">
         {lead.isPrimaryTarget && (
@@ -48,19 +86,38 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onEnrich }) => {
             <InfoRow icon={<PhoneIcon />} label="Phone" value={lead.phone} />
         </div>
 
-        {lead.enrichedData && (lead.enrichedData.emails.length > 0 || lead.enrichedData.phones.length > 0) && (
-            <div className="mt-4 pt-4 border-t border-gray-700 space-y-3">
-                <h4 className="text-sm font-semibold text-teal-300">Enriched Data</h4>
-                {lead.enrichedData.emails.length > 0 && (
-                     <div>
-                        <p className="text-xs text-gray-400 mb-1">Emails</p>
-                        {lead.enrichedData.emails.map(email => <p key={email} className="text-gray-200 text-sm font-mono break-all">{email}</p>)}
+        {lead.enrichmentStatus === 'enriched' && hasEnrichedData && (
+            <div className="mt-4 pt-4 border-t border-gray-600 space-y-4">
+                <h4 className="text-sm font-semibold text-teal-300">Enriched Profile</h4>
+                
+                {lead.enrichedData?.summary && (
+                    <div>
+                        <p className="text-xs text-gray-400 mb-1">Professional Summary</p>
+                        <p className="text-sm text-gray-300 leading-relaxed">{lead.enrichedData.summary}</p>
+                    </div>
+                )}
+
+                {lead.enrichedData?.linkedinUrl && (
+                    <div>
+                        <p className="text-xs text-gray-400 mb-1">Social Profile</p>
+                        <a href={lead.enrichedData.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center space-x-2 text-sm text-blue-400 hover:text-blue-300 hover:underline">
+                            <LinkedinIcon />
+                            <span>View LinkedIn Profile</span>
+                        </a>
+                    </div>
+                )}
+                
+                {sortedEmails.length > 0 && (
+                     <div className="space-y-2">
+                        <p className="text-xs text-gray-400">Verified Emails</p>
+                        {sortedEmails.map(email => <EnrichedInfoRow key={email.value} info={email} />)}
                      </div>
                 )}
-                {lead.enrichedData.phones.length > 0 && (
-                     <div>
-                        <p className="text-xs text-gray-400 mb-1">Phone Numbers</p>
-                        {lead.enrichedData.phones.map(phone => <p key={phone} className="text-gray-200 text-sm font-mono">{phone}</p>)}
+
+                {sortedPhones.length > 0 && (
+                     <div className="space-y-2">
+                        <p className="text-xs text-gray-400">Verified Phone Numbers</p>
+                        {sortedPhones.map(phone => <EnrichedInfoRow key={phone.value} info={phone} />)}
                      </div>
                 )}
             </div>
@@ -82,7 +139,7 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onEnrich }) => {
               case 'enriched':
                 return (
                   <p className="text-sm text-center text-green-400 font-semibold">
-                    ✓ Contact Enriched
+                    ✓ Profile Enriched
                   </p>
                 );
               case 'not_found':
@@ -118,7 +175,7 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onEnrich }) => {
                     className="w-full flex items-center justify-center text-sm bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105"
                   >
                     <SparklesIcon />
-                    <span className="ml-2">Enrich Contact</span>
+                    <span className="ml-2">Enrich Profile</span>
                   </button>
                 );
             }

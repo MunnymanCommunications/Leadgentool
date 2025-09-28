@@ -1,13 +1,22 @@
+export interface EnrichedContactInfo {
+  value: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface EnrichedData {
+  summary?: string;
+  linkedinUrl?: string;
+  emails: EnrichedContactInfo[];
+  phones: EnrichedContactInfo[];
+}
+
 export interface Lead {
   name: string;
   role: string;
   email: string;
   phone: string;
   isPrimaryTarget?: boolean;
-  enrichedData?: {
-    emails: string[];
-    phones: string[];
-  };
+  enrichedData?: EnrichedData;
   enrichmentStatus?: 'pending' | 'enriched' | 'not_found' | 'failed';
   enrichmentError?: string;
 }

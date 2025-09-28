@@ -18,7 +18,7 @@ interface ContactOutResponse {
   profiles: { [key: string]: ContactOutProfile } | [];
 }
 
-export interface EnrichedData {
+export interface ContactOutData {
     emails: string[];
     phones: string[];
 }
@@ -27,7 +27,7 @@ export const enrichContact = async (
     name: string,
     role: string,
     company: string
-): Promise<EnrichedData | null> => {
+): Promise<ContactOutData | null> => {
     try {
         const payload: {
             name: string;

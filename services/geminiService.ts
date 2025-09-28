@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import type { Lead, GroundingChunk } from '../types';
+import type { Lead, GroundingChunk, EnrichedData } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -132,4 +132,103 @@ export const findCompanyLeads = async (company: string, location: string): Promi
   const overview = researchData.overview || 'No overview provided.';
   
   return { overview, leads: sortedLeads, sources };
+};
+
+const generateEnrichmentPrompt = (name: string, role: string, company: string): string => {
+  return `
+    You are an expert AI assistant whose SOLE mission is to find publicly available contact information for a specific professional using targeted Google searches.
+
+    **Target:**
+    - Name: "${name}"
+    - Role: "${role}"
+    - Company: "${company}"
+
+    **CRITICAL STRATEGY:**
+    Your primary goal is to extract email addresses and phone numbers. You MUST achieve this by carefully examining the Google search result **SNIPPETS** and **TITLES**. Many data provider websites (like ContactOut, RocketReach, Apollo, ZoomInfo) show contact information directly in their search result snippets on Google. You must look for this information and extract it. Do not just look at the links; read the text previews.
+
+    **EXECUTION PLAN:**
+    1.  Execute a series of targeted searches.
+    2.  For each search, meticulously scan the result snippets for any emails or phone numbers.
+    3.  Compile all unique findings.
+
+    **SEARCH QUERIES TO USE:**
+    - \`"${name}" "${company}" email phone contactout\`
+    - \`"${name}" "${company}" contact information rocketreach\`
+    - \`"${name}" email address "${role}" "${company}"\`
+    - \`site:linkedin.com/in "${name}" "${company}"\` (Use this primarily for the LinkedIn URL)
+
+    **OUTPUT REQUIREMENTS:**
+    Your entire response MUST be a single, raw JSON object. Do not include any text, explanations, or markdown formatting (like \`\`\`json) before or after the JSON.
+
+    The JSON object MUST have these four top-level keys: "summary", "linkedinUrl", "emails", and "phones".
+
+    1.  **emails**: (TOP PRIORITY) A JSON array of objects. For each email found:
+        - \`value\`: The email address (string).
+        - \`confidence\`: Your confidence level ("high", "medium", or "low"). Base confidence on how directly it was associated with the person in the search snippet.
+
+    2.  **phones**: (TOP PRIORITY) A JSON array of objects. For each phone number found:
+        - \`value\`: The phone number (string).
+        - \`confidence\`: Your confidence level ("high", "medium", or "low").
+
+    3.  **linkedinUrl**: (SECONDARY PRIORITY) The direct URL to their main LinkedIn profile. If not found, use the string value "Not Found".
+
+    4.  **summary**: (LOWEST PRIORITY) After searching for contact info, provide a 1-sentence professional summary if easily found. If not, use an empty string "".
+
+    **CRITICAL RULES:**
+    - If you cannot find any information for a key (e.g., no emails), return an empty array \`[]\` for "emails" and "phones".
+    - Your highest priority is to find emails and phones by reading the search snippets.
+
+    Example output:
+    {
+      "summary": "Director of Logistics at ExampleCorp, skilled in supply chain optimization.",
+      "linkedinUrl": "https://www.linkedin.com/in/janesmithexample",
+      "emails": [
+        { "value": "jane.smith@examplecorp.com", "confidence": "high" },
+        { "value": "j.smith@examplecorp.com", "confidence": "medium" }
+      ],
+      "phones": [
+        { "value": "+1-555-987-6543", "confidence": "high" }
+      ]
+    }
+  `;
+}
+
+export const enrichLead = async (name: string, role: string, company: string): Promise<EnrichedData> => {
+  const prompt = generateEnrichmentPrompt(name, role, company);
+
+  const response: GenerateContentResponse = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+    config: {
+      tools: [{googleSearch: {}}],
+    },
+  });
+
+  const rawText = response.text;
+  let enrichedData: EnrichedData = { summary: '', linkedinUrl: undefined, emails: [], phones: [] };
+  
+  try {
+    const startIndex = rawText.indexOf('{');
+    const endIndex = rawText.lastIndexOf('}');
+    if (startIndex === -1 || endIndex === -1) {
+        throw new Error("No JSON object found in the response for enrichment.");
+    }
+    const jsonString = rawText.substring(startIndex, endIndex + 1);
+    const parsedData = JSON.parse(jsonString);
+
+    // Validate and structure the data
+    enrichedData = {
+        summary: parsedData.summary || '',
+        linkedinUrl: parsedData.linkedinUrl === 'Not Found' ? undefined : parsedData.linkedinUrl,
+        emails: Array.isArray(parsedData.emails) ? parsedData.emails : [],
+        phones: Array.isArray(parsedData.phones) ? parsedData.phones : [],
+    }
+
+  } catch (e) {
+    console.error("Failed to parse Gemini enrichment response as JSON:", e);
+    console.error("Raw enrichment response text:", rawText);
+    throw new Error("AI response for enrichment was not in a valid JSON format.");
+  }
+  
+  return enrichedData;
 };

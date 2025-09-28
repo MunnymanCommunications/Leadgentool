@@ -3,9 +3,8 @@ import { Header } from './components/Header';
 import { LeadCard } from './components/LeadCard';
 import { SourceLink } from './components/SourceLink';
 import { Loader } from './components/Loader';
-import { findCompanyLeads } from './services/geminiService';
-import { enrichContact } from './services/contactOutService';
-import type { Lead, GroundingChunk } from './types';
+import { findCompanyLeads, enrichLead } from './services/geminiService';
+import type { Lead, GroundingChunk, EnrichedData } from './types';
 import { OverviewCard } from './components/OverviewCard';
 import { WebhookInfo } from './components/WebhookInfo';
 
@@ -50,7 +49,7 @@ const App: React.FC = () => {
   const handleEnrichLead = useCallback(async (leadIndex: number) => {
     const leadToEnrich = leads[leadIndex];
     if (!leadToEnrich || leadToEnrich.enrichmentStatus === 'pending') {
-      return;
+        return;
     }
 
     setLeads(currentLeads => {
@@ -60,15 +59,21 @@ const App: React.FC = () => {
     });
 
     try {
-        const enrichedData = await enrichContact(leadToEnrich.name, leadToEnrich.role, companyInput);
+        const enrichedData = await enrichLead(leadToEnrich.name, leadToEnrich.role, companyInput);
         
         setLeads(currentLeads => {
             const newLeads = [...currentLeads];
             const currentLead = newLeads[leadIndex];
-            if (enrichedData && (enrichedData.emails.length > 0 || enrichedData.phones.length > 0)) {
+
+            const hasData = enrichedData.summary ||
+                            enrichedData.linkedinUrl ||
+                            (enrichedData.emails && enrichedData.emails.length > 0) ||
+                            (enrichedData.phones && enrichedData.phones.length > 0);
+            
+            if (hasData) {
                 newLeads[leadIndex] = {
                     ...currentLead,
-                    enrichedData,
+                    enrichedData: enrichedData,
                     enrichmentStatus: 'enriched'
                 };
             } else {
@@ -78,9 +83,7 @@ const App: React.FC = () => {
         });
     } catch (error) {
         console.error("Enrichment failed:", error);
-        const errorMessage = error instanceof Error && error.message.includes('Failed to fetch')
-            ? 'A network error occurred. This may be due to browser security (CORS) policies blocking the request from this domain. The standard solution is to use a backend proxy.'
-            : 'An unexpected error occurred during enrichment.';
+        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during enrichment.';
 
         setLeads(currentLeads => {
             const newLeads = [...currentLeads];
