@@ -136,7 +136,7 @@ export const findCompanyLeads = async (company: string, location: string): Promi
 
 const generateEnrichmentPrompt = (name: string, role: string, company: string): string => {
   return `
-    You are an expert AI assistant whose SOLE mission is to find publicly available contact information for a specific professional using targeted Google searches.
+    You are an expert AI research assistant. Your mission is to find and compile a professional profile for a specific individual using targeted Google searches. You will act like a detective, piecing together clues.
 
     **Target:**
     - Name: "${name}"
@@ -144,51 +144,54 @@ const generateEnrichmentPrompt = (name: string, role: string, company: string): 
     - Company: "${company}"
 
     **CRITICAL STRATEGY:**
-    Your primary goal is to extract email addresses and phone numbers. You MUST achieve this by carefully examining the Google search result **SNIPPETS** and **TITLES**. Many data provider websites (like ContactOut, RocketReach, Apollo, ZoomInfo) show contact information directly in their search result snippets on Google. You must look for this information and extract it. Do not just look at the links; read the text previews.
+    Your primary goal is to extract a professional summary, a LinkedIn URL, and all possible contact information (emails, phone numbers).
+    You MUST achieve this by meticulously examining Google search result **SNIPPETS** and **TITLES**. Information from data provider websites (like ContactOut, RocketReach, Apollo, ZoomInfo) and LinkedIn that is visible directly in the search snippets is highly valuable.
 
-    **EXECUTION PLAN:**
-    1.  Execute a series of targeted searches.
-    2.  For each search, meticulously scan the result snippets for any emails or phone numbers.
-    3.  Compile all unique findings.
+    **NEW DIRECTIVE - PIECING TOGETHER MASKED INFO:**
+    Sometimes, contact information is partially masked (e.g., "kb*****@iacna.com" or "kevin.b****@iacgroup.com"). You should:
+    1.  Collect all masked versions you can find.
+    2.  Attempt to logically combine them to reconstruct the full, unmasked information. For example, if one source shows "j.smith@..." and another shows "john.s...@domain.com", you can infer "john.smith@domain.com".
+    3.  Assign confidence scores based on how you found the information.
 
-    **SEARCH QUERIES TO USE:**
-    - \`"${name}" "${company}" email phone contactout\`
+    **SUGGESTED SEARCH QUERIES (use variations of these):**
+    - \`"${name}" "${role}" "${company}" email contactout\`
+    - \`site:linkedin.com/in "${name}" "${company}"\`
     - \`"${name}" "${company}" contact information rocketreach\`
-    - \`"${name}" email address "${role}" "${company}"\`
-    - \`site:linkedin.com/in "${name}" "${company}"\` (Use this primarily for the LinkedIn URL)
+    - \`"${name}" email address "${role}" "${company}" apollo.io\`
 
     **OUTPUT REQUIREMENTS:**
     Your entire response MUST be a single, raw JSON object. Do not include any text, explanations, or markdown formatting (like \`\`\`json) before or after the JSON.
 
     The JSON object MUST have these four top-level keys: "summary", "linkedinUrl", "emails", and "phones".
 
-    1.  **emails**: (TOP PRIORITY) A JSON array of objects. For each email found:
-        - \`value\`: The email address (string).
-        - \`confidence\`: Your confidence level ("high", "medium", or "low"). Base confidence on how directly it was associated with the person in the search snippet.
+    1.  **summary**: A brief overview (2-3 sentences) of the person's professional history and current role. If nothing is found, use an empty string "".
 
-    2.  **phones**: (TOP PRIORITY) A JSON array of objects. For each phone number found:
-        - \`value\`: The phone number (string).
+    2.  **linkedinUrl**: The direct URL to their main LinkedIn profile. If not found, use the string value "Not Found".
+
+    3.  **emails**: A JSON array of objects. For each complete email found:
+        - \`value\`: The full email address (string). Can be personal or professional. **CRITICAL: Do NOT include partially masked emails in the final output; only include them if you successfully pieced them together into a complete email.**
         - \`confidence\`: Your confidence level ("high", "medium", or "low").
+            - "high": Found complete and unmasked directly in a search snippet from a data provider.
+            - "medium": Inferred from a common corporate email pattern but not seen directly.
+            - "low": Reconstructed by piecing together multiple masked versions.
 
-    3.  **linkedinUrl**: (SECONDARY PRIORITY) The direct URL to their main LinkedIn profile. If not found, use the string value "Not Found".
-
-    4.  **summary**: (LOWEST PRIORITY) After searching for contact info, provide a 1-sentence professional summary if easily found. If not, use an empty string "".
+    4.  **phones**: A JSON array of objects, following the same logic as emails for value and confidence.
 
     **CRITICAL RULES:**
-    - If you cannot find any information for a key (e.g., no emails), return an empty array \`[]\` for "emails" and "phones".
-    - Your highest priority is to find emails and phones by reading the search snippets.
+    - If you cannot find any information for a key, return an empty array \`[]\` for "emails" and "phones".
+    - Do not invent information. Only report what can be found or strongly inferred.
+    - All complete email addresses and phone numbers are valuable, whether personal or work-related.
 
     Example output:
     {
-      "summary": "Director of Logistics at ExampleCorp, skilled in supply chain optimization.",
-      "linkedinUrl": "https://www.linkedin.com/in/janesmithexample",
+      "summary": "Kevin Baird is the Chief Executive Officer at IAC Group, a leader in the automotive interiors sector. With extensive experience in global manufacturing and operations, he focuses on driving strategic growth and innovation within the company.",
+      "linkedinUrl": "https://www.linkedin.com/in/kevin-baird-iac",
       "emails": [
-        { "value": "jane.smith@examplecorp.com", "confidence": "high" },
-        { "value": "j.smith@examplecorp.com", "confidence": "medium" }
+        { "value": "kbaird@iacna.com", "confidence": "high" },
+        { "value": "kevin.baird@iacgroup.com", "confidence": "medium" },
+        { "value": "kbaird123@gmail.com", "confidence": "low" }
       ],
-      "phones": [
-        { "value": "+1-555-987-6543", "confidence": "high" }
-      ]
+      "phones": []
     }
   `;
 }
