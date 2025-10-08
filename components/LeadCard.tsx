@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import type { Lead, EnrichedContactInfo } from '../types';
 import { UserIcon } from './icons/UserIcon';
 import { BriefcaseIcon } from './icons/BriefcaseIcon';
@@ -7,6 +8,8 @@ import { PhoneIcon } from './icons/PhoneIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { Loader } from './Loader';
 import { LinkedinIcon } from './icons/LinkedinIcon';
+import { CopyIcon } from './icons/CopyIcon';
+import { CheckIcon } from './icons/CheckIcon';
 
 
 interface LeadCardProps {
@@ -31,25 +34,41 @@ const InfoRow: React.FC<{ icon: React.ReactNode; label: string; value: string }>
     );
 };
 
-const ConfidenceBadge: React.FC<{ confidence: 'high' | 'medium' | 'low' }> = ({ confidence }) => {
+const CopyableRow: React.FC<{ info: EnrichedContactInfo }> = ({ info }) => {
+    const [isCopied, setIsCopied] = useState(false);
+
     const confidenceStyles = {
         high: 'bg-green-500/20 text-green-300 border-green-500/30',
         medium: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
         low: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
     };
+
+    const handleCopy = () => {
+        if (!info.value) return;
+        navigator.clipboard.writeText(info.value);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    };
+
     return (
-        <span className={`ml-2 px-2 py-0.5 text-xs font-semibold rounded-full border ${confidenceStyles[confidence]}`}>
-            {confidence}
-        </span>
+        <div className="flex justify-between items-center text-sm group bg-gray-900/50 p-2 rounded-md border border-gray-700/50">
+            <span className="text-gray-200 font-mono break-all mr-2">{info.value}</span>
+            <div className="flex items-center space-x-2 flex-shrink-0 ml-auto">
+                 <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${confidenceStyles[info.confidence]}`}>
+                    {info.confidence}
+                </span>
+                <button 
+                    onClick={handleCopy} 
+                    className="text-gray-400 hover:text-white transition-all duration-200"
+                    aria-label={`Copy ${info.value}`}
+                    title="Copy to clipboard"
+                >
+                    {isCopied ? <CheckIcon /> : <CopyIcon />}
+                </button>
+            </div>
+        </div>
     );
 };
-
-const EnrichedInfoRow: React.FC<{ info: EnrichedContactInfo }> = ({ info }) => (
-    <div className="flex justify-between items-center text-sm">
-        <span className="text-gray-200 font-mono break-all">{info.value}</span>
-        <ConfidenceBadge confidence={info.confidence} />
-    </div>
-);
 
 
 export const LeadCard: React.FC<LeadCardProps> = ({ lead, onEnrich }) => {
@@ -110,14 +129,14 @@ export const LeadCard: React.FC<LeadCardProps> = ({ lead, onEnrich }) => {
                 {sortedEmails.length > 0 && (
                      <div className="space-y-2">
                         <p className="text-xs text-gray-400">Verified Emails</p>
-                        {sortedEmails.map(email => <EnrichedInfoRow key={email.value} info={email} />)}
+                        {sortedEmails.map(email => <CopyableRow key={email.value} info={email} />)}
                      </div>
                 )}
 
                 {sortedPhones.length > 0 && (
                      <div className="space-y-2">
                         <p className="text-xs text-gray-400">Verified Phone Numbers</p>
-                        {sortedPhones.map(phone => <EnrichedInfoRow key={phone.value} info={phone} />)}
+                        {sortedPhones.map(phone => <CopyableRow key={phone.value} info={phone} />)}
                      </div>
                 )}
             </div>

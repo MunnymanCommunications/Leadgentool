@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Header } from './components/Header';
 import { LeadCard } from './components/LeadCard';
@@ -7,6 +8,7 @@ import { findCompanyLeads, enrichLead } from './services/geminiService';
 import type { Lead, GroundingChunk, EnrichedData } from './types';
 import { OverviewCard } from './components/OverviewCard';
 import { WebhookInfo } from './components/WebhookInfo';
+import { SendIcon } from './components/icons/SendIcon';
 
 const App: React.FC = () => {
   const [companyInput, setCompanyInput] = useState<string>('');
@@ -17,6 +19,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showWebhookInfo, setShowWebhookInfo] = useState<boolean>(false);
+  const [crmSendStatus, setCrmSendStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
 
   const handleResearch = useCallback(async () => {
@@ -30,6 +33,7 @@ const App: React.FC = () => {
     setOverview('');
     setLeads([]);
     setSources([]);
+    setCrmSendStatus('idle');
 
     try {
       const result = await findCompanyLeads(companyInput, locationInput);
@@ -96,6 +100,85 @@ const App: React.FC = () => {
         });
     }
 }, [leads, companyInput]);
+
+  const handleSendToCrm = useCallback(async () => {
+      setCrmSendStatus('sending');
+      
+      try {
+          const payload: { [key: string]: any } = {
+              company: companyInput,
+          };
+
+          leads.forEach((lead, index) => {
+              payload[`Contact ${index + 1}`] = {
+                  name: lead.name,
+                  role: lead.role,
+                  initialEmail: lead.email,
+                  initialPhone: lead.phone,
+                  isPrimaryTarget: lead.isPrimaryTarget ?? false,
+                  enrichedSummary: lead.enrichedData?.summary || 'Not Found',
+                  linkedinUrl: lead.enrichedData?.linkedinUrl || 'Not Found',
+                  enrichedEmails: lead.enrichedData?.emails.map(e => `${e.value} (Confidence: ${e.confidence})`).join(', ') || 'Not Found',
+                  enrichedPhones: lead.enrichedData?.phones.map(p => `${p.value} (Confidence: ${p.confidence})`).join(', ') || 'Not Found',
+              };
+          });
+
+          payload.companySummary = overview;
+
+          const response = await fetch('https://n8n.harveyio.com/webhook/e43adb8a-203b-44bb-95e7-cf8769e9fd71', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Webhook failed with status ${response.status}: ${errorText}`);
+          }
+
+          setCrmSendStatus('success');
+          setTimeout(() => setCrmSendStatus('idle'), 3000);
+
+      } catch (err) {
+          console.error("Failed to send to CRM:", err);
+          setCrmSendStatus('error');
+      }
+  }, [leads, companyInput, overview]);
+
+  const renderCrmButton = () => {
+    const baseClasses = "flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-md transition-all duration-300 ease-in-out";
+    switch (crmSendStatus) {
+      case 'sending':
+        return (
+            <button disabled className={`${baseClasses} w-48 bg-gray-600 cursor-not-allowed text-white`}>
+                <Loader />
+                <span>Sending...</span>
+            </button>
+        );
+      case 'success':
+        return (
+            <button disabled className={`${baseClasses} w-48 bg-green-600 text-white`}>
+                ✓ Sent Successfully!
+            </button>
+        );
+      case 'error':
+        return (
+            <button onClick={handleSendToCrm} className={`${baseClasses} w-48 bg-red-600 hover:bg-red-700 text-white`}>
+                Send Failed. Retry?
+            </button>
+        );
+      case 'idle':
+      default:
+        return (
+            <button onClick={handleSendToCrm} className={`${baseClasses} w-48 bg-indigo-600 hover:bg-indigo-700 text-white transform hover:scale-105`}>
+                <SendIcon />
+                <span>Send to CRM</span>
+            </button>
+        );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans">
@@ -174,7 +257,10 @@ const App: React.FC = () => {
             
               {leads.length > 0 && (
                 <div>
-                    <h3 className="text-xl font-bold text-gray-300 mb-4 border-b border-gray-700 pb-2">Identified Contacts</h3>
+                    <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                      <h3 className="text-xl font-bold text-gray-300">Identified Contacts</h3>
+                      {renderCrmButton()}
+                    </div>
                     <div className="grid grid-cols-1 gap-4">
                         {leads.map((lead, index) => (
                             <LeadCard key={index} lead={lead} onEnrich={() => handleEnrichLead(index)} />
