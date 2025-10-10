@@ -18,7 +18,8 @@ export const WebhookInfo: React.FC = () => {
   "phone": "+15551234567",
   "job_title": "Director of Logistics",
   "custom_field1": "https://linkedin.com/in/janedoe",
-  "custom_field2": "Experienced logistics professional with a focus on supply chain optimization."
+  "custom_field2": "Experienced logistics professional...",
+  "company_overview": "ExampleCorp is a leading provider of logistics solutions, recently recognized for its innovative supply chain optimization software."
 }'`;
 
     return (
@@ -44,6 +45,20 @@ export const WebhookInfo: React.FC = () => {
                  <ul className="text-gray-400 text-sm list-disc list-inside space-y-1 mt-1">
                      <li><code className="bg-gray-700 text-xs p-1 rounded">Content-Type: application/json</code></li>
                      <li><code className="bg-gray-700 text-xs p-1 rounded">x-company-name: [The company you are researching]</code></li>
+                 </ul>
+            </div>
+
+            <div>
+                 <h5 className="font-semibold text-gray-200">Request Body</h5>
+                 <p className="text-gray-400 text-sm mt-1">The JSON body should contain the contact's details. The webhook will also receive the <code className="bg-gray-700 text-xs p-1 rounded">company_overview</code> with each contact.</p>
+                 <ul className="text-gray-400 text-sm list-disc list-inside space-y-1 mt-2">
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">name</code>: string</li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">email</code>: string</li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">phone</code>: string</li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">job_title</code>: string</li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">custom_field1</code>: string (e.g., LinkedIn URL)</li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">custom_field2</code>: string (e.g., Professional Summary)</li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">company_overview</code>: string (AI-generated company insights)</li>
                  </ul>
             </div>
 

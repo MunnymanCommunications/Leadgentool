@@ -114,7 +114,8 @@ const App: React.FC = () => {
                   phone: bestPhone,
                   job_title: lead.role,
                   custom_field1: lead.enrichedData?.linkedinUrl || '',
-                  custom_field2: lead.enrichedData?.summary || ''
+                  custom_field2: lead.enrichedData?.summary || '',
+                  company_overview: overview,
               };
 
               return fetch('https://zlkpkcxeplxavplpvqua.supabase.co/functions/v1/webhook-company', {
@@ -142,7 +143,7 @@ const App: React.FC = () => {
           console.error("Failed to send to CRM:", err);
           setCrmSendStatus('error');
       }
-  }, [leads, companyInput]);
+  }, [leads, companyInput, overview]);
 
   const renderCrmButton = () => {
     const baseClasses = "flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-md transition-all duration-300 ease-in-out";
