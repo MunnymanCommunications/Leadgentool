@@ -7,64 +7,52 @@ const CodeBlock: React.FC<{ children: React.ReactNode, lang: string }> = ({ chil
 );
 
 export const WebhookInfo: React.FC = () => {
-    const webhookUrl = 'https://YOUR_SHARED_HOST_URL/webhook.php';
+    const webhookUrl = 'https://zlkpkcxeplxavplpvqua.supabase.co/functions/v1/webhook-company';
     
-    const curlExample = `curl -X POST ${webhookUrl} \\
+    const curlExample = `curl -X POST '${webhookUrl}' \\
 -H "Content-Type: application/json" \\
+-H "x-company-name: ExampleCorp" \\
 -d '{
-  "company": "ExampleCorp",
-  "location": "San Francisco, CA"
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com",
+  "phone": "+15551234567",
+  "job_title": "Director of Logistics",
+  "custom_field1": "https://linkedin.com/in/janedoe",
+  "custom_field2": "Experienced logistics professional with a focus on supply chain optimization."
 }'`;
 
     return (
-        <div className="mt-6 p-5 border border-gray-700 rounded-lg bg-gray-900/50 space-y-6">
-            <h4 className="text-lg font-semibold text-teal-300 text-center">Two Ways to Use This Tool</h4>
+        <div className="mt-6 p-5 border border-gray-700 rounded-lg bg-gray-900/50 space-y-4">
+            <h4 className="text-lg font-semibold text-teal-300 text-center">Using the Contact API</h4>
             
             <div className="p-4 bg-gray-800 rounded-lg border border-gray-600">
-                <h5 className="font-semibold text-gray-200">The Core Concept: They Are Separate</h5>
-                <p className="text-gray-400 text-sm mt-1">
-                    The web app (on Coolify) and the webhook (on your shared host) <span className="font-bold text-yellow-400">do not talk to each other</span>. They are two different tools for the same purpose.
-                </p>
-                 <p className="text-gray-400 text-sm mt-2">
-                    Think of it like a car: you can either drive it yourself (the web app) or you can use a remote to tell it where to go (the webhook for automation).
+                <p className="text-gray-400 text-sm">
+                    This tool sends enriched contact data to a specific API endpoint. You can use this same endpoint for your own automations (e.g., with n8n, Zapier, or custom scripts).
                 </p>
             </div>
 
-            {/* --- USE CASE 1 --- */}
-            <div className="border border-blue-500/50 rounded-lg p-4 bg-blue-900/20">
-                <h5 className="font-bold text-blue-300 mb-2">Use Case 1: Manual Research (This App)</h5>
-                <p className="text-gray-400 text-sm">
-                    This is the website you are using right now. When you type a company name and click the button, your web browser calls the Gemini API directly and securely.
+            <div>
+                <h5 className="font-semibold text-gray-200">API Endpoint</h5>
+                <p className="text-gray-400 text-sm mt-1">
+                   All contacts are sent via a <code className="bg-gray-700 text-xs p-1 rounded">POST</code> request to the following URL:
                 </p>
-                <p className="font-semibold text-gray-300 text-sm mt-2">
-                    It <span className="underline">does not</span> use or need the <code className="bg-gray-700 text-xs p-1 rounded">webhook.php</code> file at all.
-                </p>
+                <CodeBlock lang="text">{webhookUrl}</CodeBlock>
             </div>
             
-            {/* --- USE CASE 2 --- */}
-            <div className="border border-teal-500/50 rounded-lg p-4 bg-teal-900/20">
-                 <h5 className="font-bold text-teal-300 mb-2">Use Case 2: Automated Research (Optional Webhook)</h5>
-                <p className="text-gray-400 text-sm">
-                    The <code className="bg-gray-700 text-xs p-1 rounded">webhook.php</code> file is for automation. You upload this single file to your shared hosting plan to create an API endpoint.
-                </p>
-                <p className="text-gray-400 text-sm mt-2">
-                   You would then give that URL (<code className="bg-gray-700 text-xs p-1 rounded">{webhookUrl}</code>) to another service like n8n, Zapier, or your own custom code. That service can then trigger research jobs automatically.
-                </p>
+            <div>
+                 <h5 className="font-semibold text-gray-200">Required Headers</h5>
+                 <ul className="text-gray-400 text-sm list-disc list-inside space-y-1 mt-1">
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">Content-Type: application/json</code></li>
+                     <li><code className="bg-gray-700 text-xs p-1 rounded">x-company-name: [The company you are researching]</code></li>
+                 </ul>
+            </div>
 
-                <div className="mt-4">
-                    <h6 className="font-semibold text-gray-300 mb-2">How to Set It Up:</h6>
-                     <ol className="text-gray-400 text-sm list-decimal list-inside space-y-2">
-                         <li>Upload the <code className="bg-gray-700 text-xs p-1 rounded">webhook.php</code> file to your shared host's public directory.</li>
-                         <li>
-                            Set your Gemini API Key as an environment variable on that server. On many hosts, you can do this by adding the following line to a <code className="bg-gray-700 text-xs p-1 rounded">.htaccess</code> file:
-                            <CodeBlock lang="bash">SetEnv API_KEY "YOUR_GEMINI_API_KEY_HERE"</CodeBlock>
-                         </li>
-                         <li>
-                             Send a <code className="bg-gray-700 text-xs p-1 rounded">POST</code> request to your webhook's URL to trigger it. Here's an example:
-                            <CodeBlock lang="bash">{curlExample}</CodeBlock>
-                         </li>
-                     </ol>
-                </div>
+            <div>
+                 <h5 className="font-semibold text-gray-200">Example Request</h5>
+                <p className="text-gray-400 text-sm mt-1">
+                   Here's an example using cURL to send a single contact:
+                </p>
+                <CodeBlock lang="bash">{curlExample}</CodeBlock>
             </div>
         </div>
     );

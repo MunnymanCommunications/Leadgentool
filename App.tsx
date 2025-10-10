@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Header } from './components/Header';
 import { LeadCard } from './components/LeadCard';
@@ -105,38 +104,36 @@ const App: React.FC = () => {
       setCrmSendStatus('sending');
       
       try {
-          const payload: { [key: string]: any } = {
-              company: companyInput,
-          };
+          const leadPromises = leads.map(lead => {
+              const bestEmail = lead.enrichedData?.emails?.[0]?.value || (lead.email.toLowerCase() !== 'not found' ? lead.email : '');
+              const bestPhone = lead.enrichedData?.phones?.[0]?.value || (lead.phone.toLowerCase() !== 'not found' ? lead.phone : '');
 
-          leads.forEach((lead, index) => {
-              payload[`Contact ${index + 1}`] = {
+              const payload = {
                   name: lead.name,
-                  role: lead.role,
-                  initialEmail: lead.email,
-                  initialPhone: lead.phone,
-                  isPrimaryTarget: lead.isPrimaryTarget ?? false,
-                  enrichedSummary: lead.enrichedData?.summary || 'Not Found',
-                  linkedinUrl: lead.enrichedData?.linkedinUrl || 'Not Found',
-                  enrichedEmails: lead.enrichedData?.emails.map(e => `${e.value} (Confidence: ${e.confidence})`).join(', ') || 'Not Found',
-                  enrichedPhones: lead.enrichedData?.phones.map(p => `${p.value} (Confidence: ${p.confidence})`).join(', ') || 'Not Found',
+                  email: bestEmail,
+                  phone: bestPhone,
+                  job_title: lead.role,
+                  custom_field1: lead.enrichedData?.linkedinUrl || '',
+                  custom_field2: lead.enrichedData?.summary || ''
               };
+
+              return fetch('https://zlkpkcxeplxavplpvqua.supabase.co/functions/v1/webhook-company', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'x-company-name': companyInput,
+                  },
+                  body: JSON.stringify(payload),
+              }).then(async response => {
+                  if (!response.ok) {
+                      const errorText = await response.text();
+                      throw new Error(`Webhook for "${lead.name}" failed: ${errorText}`);
+                  }
+                  return response;
+              });
           });
 
-          payload.companySummary = overview;
-
-          const response = await fetch('https://n8n.harveyio.com/webhook/e43adb8a-203b-44bb-95e7-cf8769e9fd71', {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(`Webhook failed with status ${response.status}: ${errorText}`);
-          }
+          await Promise.all(leadPromises);
 
           setCrmSendStatus('success');
           setTimeout(() => setCrmSendStatus('idle'), 3000);
@@ -145,7 +142,7 @@ const App: React.FC = () => {
           console.error("Failed to send to CRM:", err);
           setCrmSendStatus('error');
       }
-  }, [leads, companyInput, overview]);
+  }, [leads, companyInput]);
 
   const renderCrmButton = () => {
     const baseClasses = "flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-md transition-all duration-300 ease-in-out";
