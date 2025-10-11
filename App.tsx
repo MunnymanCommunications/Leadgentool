@@ -116,7 +116,7 @@ const App: React.FC = () => {
                   custom_field1: lead.enrichedData?.linkedinUrl || '',
                   custom_field2: lead.enrichedData?.summary || '',
                   company_overview: overview,
-                  tenant_subdomain: enzos
+                  tenant_subdomain: enzos,
               };
 
               return fetch('https://zlkpkcxeplxavplpvqua.supabase.co/functions/v1/webhook-company', {
