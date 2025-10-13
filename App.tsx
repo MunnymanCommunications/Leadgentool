@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { LeadCard } from './components/LeadCard';
 import { SourceLink } from './components/SourceLink';
@@ -9,20 +9,31 @@ import { OverviewCard } from './components/OverviewCard';
 import { WebhookInfo } from './components/WebhookInfo';
 import { SendIcon } from './components/icons/SendIcon';
 
+const loadingPhrases = [
+    'Scanning internet for company data...',
+    'Scraping employee information...',
+    'Using extractor tools to pull necessary info...',
+    'Filtering relevant contacts...',
+    'Compiling intelligence report...',
+    'Cross-referencing public records...',
+];
+
 const App: React.FC = () => {
   const [companyInput, setCompanyInput] = useState<string>('');
   const [locationInput, setLocationInput] = useState<string>('');
+  const [tenantSubdomain, setTenantSubdomain] = useState<string>('');
   const [overview, setOverview] = useState<string>('');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<GroundingChunk[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>(loadingPhrases[0]);
   const [error, setError] = useState<string | null>(null);
   const [showWebhookInfo, setShowWebhookInfo] = useState<boolean>(false);
   const [crmSendStatus, setCrmSendStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
 
-  const handleResearch = useCallback(async () => {
-    if (!companyInput.trim()) {
+  const handleResearch = useCallback(async (companyToSearch: string, locationToSearch: string) => {
+    if (!companyToSearch.trim()) {
       setError('Please enter a company name or website.');
       return;
     }
@@ -35,7 +46,7 @@ const App: React.FC = () => {
     setCrmSendStatus('idle');
 
     try {
-      const result = await findCompanyLeads(companyInput, locationInput);
+      const result = await findCompanyLeads(companyToSearch, locationToSearch);
       setOverview(result.overview);
       setLeads(result.leads);
       setSources(result.sources);
@@ -47,7 +58,36 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [companyInput, locationInput]);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const company = params.get('company');
+    const location = params.get('location');
+    const tenant = params.get('tenant_subdomain');
+
+    if (company) {
+        setCompanyInput(company);
+        setLocationInput(location || '');
+        setTenantSubdomain(tenant || '');
+        handleResearch(company, location || '');
+    }
+  }, [handleResearch]);
+
+  useEffect(() => {
+    if (isLoading) {
+        setLoadingMessage(loadingPhrases[0]);
+        const intervalId = window.setInterval(() => {
+            setLoadingMessage(currentMessage => {
+                const currentIndex = loadingPhrases.indexOf(currentMessage);
+                const nextIndex = (currentIndex + 1) % loadingPhrases.length;
+                return loadingPhrases[nextIndex];
+            });
+        }, 2000);
+
+        return () => window.clearInterval(intervalId);
+    }
+  }, [isLoading]);
 
   const handleEnrichLead = useCallback(async (leadIndex: number) => {
     const leadToEnrich = leads[leadIndex];
@@ -105,18 +145,39 @@ const App: React.FC = () => {
       
       try {
           const leadPromises = leads.map(lead => {
-              const bestEmail = lead.enrichedData?.emails?.[0]?.value || (lead.email.toLowerCase() !== 'not found' ? lead.email : '');
-              const bestPhone = lead.enrichedData?.phones?.[0]?.value || (lead.phone.toLowerCase() !== 'not found' ? lead.phone : '');
+              const enrichedEmails = lead.enrichedData?.emails?.map(e => e.value) || [];
+              const enrichedPhones = lead.enrichedData?.phones?.map(p => p.value) || [];
+
+              const baseEmail = lead.email.toLowerCase() !== 'not found' ? lead.email : null;
+              const basePhone = lead.phone.toLowerCase() !== 'not found' ? lead.phone : null;
+              
+              // Combine and deduplicate, prioritizing enriched data
+              const allEmails = [...new Set([...enrichedEmails, ...(baseEmail ? [baseEmail] : [])])];
+              const allPhones = [...new Set([...enrichedPhones, ...(basePhone ? [basePhone] : [])])];
+
+              const primaryEmail = allEmails[0] || '';
+              const additionalEmails = allEmails.slice(1);
+
+              const primaryPhone = allPhones[0] || '';
+              const additionalPhones = allPhones.slice(1);
+              
+              let summaryAndNotes = lead.enrichedData?.summary || '';
+              if (additionalEmails.length > 0) {
+                  summaryAndNotes += `\n\nAdditional Emails:\n${additionalEmails.join('\n')}`;
+              }
+              if (additionalPhones.length > 0) {
+                  summaryAndNotes += `\n\nAdditional Phones:\n${additionalPhones.join('\n')}`;
+              }
 
               const payload = {
                   name: lead.name,
-                  email: bestEmail,
-                  phone: bestPhone,
+                  email: primaryEmail,
+                  phone: primaryPhone,
                   job_title: lead.role,
                   custom_field1: lead.enrichedData?.linkedinUrl || '',
-                  custom_field2: lead.enrichedData?.summary || '',
+                  custom_field2: summaryAndNotes.trim(),
                   company_overview: overview,
-                  tenant_subdomain: "enzos",
+                  tenant_subdomain: tenantSubdomain,
               };
 
               return fetch('https://zlkpkcxeplxavplpvqua.supabase.co/functions/v1/webhook-company', {
@@ -144,7 +205,7 @@ const App: React.FC = () => {
           console.error("Failed to send to CRM:", err);
           setCrmSendStatus('error');
       }
-  }, [leads, companyInput, overview]);
+  }, [leads, companyInput, overview, tenantSubdomain]);
 
   const renderCrmButton = () => {
     const baseClasses = "flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-md transition-all duration-300 ease-in-out";
@@ -223,14 +284,14 @@ const App: React.FC = () => {
           </div>
 
           <button
-            onClick={handleResearch}
+            onClick={() => handleResearch(companyInput, locationInput)}
             disabled={isLoading || !companyInput.trim()}
             className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105 disabled:scale-100"
           >
             {isLoading ? (
               <>
                 <Loader />
-                Researching...
+                {loadingMessage}
               </>
             ) : (
               'Find Leads & Insights'
